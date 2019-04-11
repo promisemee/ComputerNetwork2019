@@ -14,18 +14,34 @@ void error(char *msg)
     exit(1);
 }
 
-void cleanExit(){exit(0);}		//for rough exit(^C)
+void cleanExit(){
+	//for rough exit(^C)
+	exit(0);
+}
 
-void send_html(int socket, char* file){		//open and send file to client
-	//open a file to serve
+char * parse(char buffer[]){		
+	//parses request file from request message
+	char *result = strchr(buffer, '/');
+	if (result == NULL) 				//get message error
+		error("ERROR");
+	char *result2 = strtok(result, " ");
+	if (strcmp("/", result2)==0) 	//ex. localhost:8000
+		return "main.html";
+	return result2+1;				//ex. localhost:8000/index.html --> index.html
+}
+
+void send_html(int socket, char* file){		
+	//open and send file to client
 	FILE *html_data;
 	html_data = fopen(file, "r");
 	if (html_data != NULL){
-		char buffer[128];	//buffer for html file
+		char buffer[128];							//buffer for html file
 		char response_data[2048]={'\0'};	
-		while (fgets(buffer, sizeof(buffer), html_data)){	//for multi-line HTML file
+		while (fgets(buffer, sizeof(buffer), html_data)){	
+			//for multi-line HTML file
 			strcat(response_data, buffer);
 		}
+
 		//response message
 		char http_header[4096] = "HTTP/1.1 2OO OK\r\n"
 		"Connection:keep-alive\r\n"
@@ -35,8 +51,7 @@ void send_html(int socket, char* file){		//open and send file to client
 		//sends http header to client
 		write(socket, http_header, sizeof(http_header));
 	}
-	else{	//no such html file
-		//-----doesn't work!------//
+	else{	//no such html file, 404 ERROR
 		html_data = fopen("404.html", "r");
 		char buffer[128];	//buffer for html file
 		char response_data[2048]={'\0'};	
@@ -46,7 +61,6 @@ void send_html(int socket, char* file){		//open and send file to client
 		char http_header[4096] = "HTTP/1.1 404 Not Found\n\n";
 		strcat(http_header, response_data);
 		write(socket, http_header, sizeof(http_header));
-		//---------------------------//
 	}
 	fclose(html_data);
 }
@@ -87,9 +101,12 @@ int main(int argc, char *argv[]){
 		error("listen");
 	}
 
-	int client_socket;			//opens client socet
+	//open client socket
+	int client_socket;
 	struct sockaddr_in client_address;
 	socklen_t client_len = sizeof(client_address);
+	
+
 	while(1){
 
 		printf("\n------------Waiting for new concection------------\n\n");
@@ -100,22 +117,30 @@ int main(int argc, char *argv[]){
 			perror("accept");
 			continue;
 		}
-		else{
-			//prints client IP address
-			printf("server : got connection from : %s\n\n",inet_ntoa(client_address.sin_addr));
+		//prints client IP address
+		printf("server : got connection from : %s\n\n",inet_ntoa(client_address.sin_addr));
 
-			//reads request message
-			recv(client_socket, buff_rcv, sizeof(buff_rcv), 0);
-			printf("%s", buff_rcv);
+		//reads request message
+		recv(client_socket, buff_rcv, sizeof(buff_rcv), 0);
+		printf("%s", buff_rcv);
 
-			//send file
-			send_html(client_socket, "index.html");
+		//parses request message
+		char * file = parse(buff_rcv);
+
+		//sends requested file and response message
+		if (file != "favicon.ico"){ 	// ignore favicon.ico
+			send_html(client_socket, file);
 		}
-		
+
 		signal(SIGINT, cleanExit);
 		signal(SIGTERM, cleanExit);			//release port in rough exit
 		close(client_socket);					//close client socket
+
 	}
 
 	return 0;
 }
+
+//Things to Do
+//Report
+//HTML files
